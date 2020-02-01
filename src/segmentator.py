@@ -15,6 +15,38 @@ import keyboard
 import glob
 from scipy import signal
 import sounddevice as sd
+from matplotlib.widgets import SpanSelector
+
+def onselect_original(xmin, xmax):
+    print('[MIN: {} / MAX: {}]'.format(xmin, xmax))
+#     indmin, indmax = np.searchsorted(original_buffer, (xmin, xmax))
+    indmin = int(xmin)
+    indmax = int(xmax)
+    indmax = min(len(original_buffer) - 1, indmax)
+
+    print('[Selected: {} ~ {}]'.format(indmin, indmax))
+#     thisx = x[indmin:indmax]
+#     thisy = y[indmin:indmax]
+#     line2.set_data(thisx, thisy)
+#     ax2.set_xlim(thisx[0], thisx[-1])
+#     ax2.set_ylim(thisy.min(), thisy.max())
+#     fig.canvas.draw()
+
+def onselect_chiptune(xmin, xmax):
+    print('[MIN: {} / MAX: {}]'.format(xmin, xmax))
+    indmin = int(xmin)
+    indmax = int(xmax)
+    indmax = min(len(chiptune_buffer) - 1, indmax)
+
+    print('[Selected: {} ~ {}]'.format(indmin, indmax))
+    
+def onselect_piano(xmin, xmax):
+    print('[MIN: {} / MAX: {}]'.format(xmin, xmax))
+    indmin = int(xmin)
+    indmax = int(xmax)
+    indmax = min(len(piano_buffer) - 1, indmax)
+
+    print('[Selected: {} ~ {}]'.format(indmin, indmax))
 
 def keyboard_event_func(e):
     global original_buffer
@@ -35,6 +67,8 @@ def keyboard_event_func(e):
     elif e.name == ',':
         sd.play(piano_buffer, fs)
         
+    # One Step Block Loading
+        
     elif e.name == 'q':
         original_buffer = np.append(original_buffer, next(original_stream))
         plot_figure()
@@ -46,6 +80,8 @@ def keyboard_event_func(e):
     elif e.name == 'z':
         piano_buffer = np.append(piano_buffer, next(piano_stream))
         plot_figure()
+        
+    # One Step Block Forwarding
         
     elif e.name == 'w':
         _len = len(original_buffer)
@@ -62,9 +98,35 @@ def keyboard_event_func(e):
         plot_figure()
     
     elif e.name == 'x':
+        
         _len = len(piano_buffer)
         piano_buffer = np.append(piano_buffer, next(piano_stream))
         piano_buffer = piano_buffer[-_len:]
+        
+    # Ten Step Block Forwarding
+        
+    elif e.name == 'e':
+        for i in range(10):
+            _len = len(original_buffer)
+            original_buffer = np.append(original_buffer, next(original_stream))
+            original_buffer = original_buffer[-_len:]
+        
+        plot_figure()
+        
+    elif e.name == 'd':
+        for i in range(10):
+            _len = len(chiptune_buffer)
+            chiptune_buffer = np.append(chiptune_buffer, next(chiptune_stream))
+            chiptune_buffer = chiptune_buffer[-_len:]
+
+        plot_figure()
+    
+    elif e.name == 'c':
+        for i in range(10):
+            _len = len(piano_buffer)
+            piano_buffer = np.append(piano_buffer, next(piano_stream))
+            piano_buffer = piano_buffer[-_len:]
+
         
         plot_figure()
 
@@ -86,39 +148,53 @@ def plot_figure():
     axes[0][0].cla()
     axes[0][0].plot(original_buffer)
     axes[0][0].set_xlim([0, len_max])
+    axes[0][0].set_ylim([-1, 1])
+
 
 #     plots[1][0][0].set_ydata(chiptune_buffer)
     axes[1][0].cla()
     axes[1][0].plot(chiptune_buffer)
     axes[1][0].set_xlim([0, len_max])
+    axes[1][0].set_ylim([-1, 1])
 
 #     plots[2][0][0].set_ydata(piano_buffer)
     axes[2][0].cla()
     axes[2][0].plot(piano_buffer)
     axes[2][0].set_xlim([0, len_max])
+    axes[2][0].set_ylim([-1, 1])
 
     S = librosa.feature.melspectrogram(y=original_buffer, sr=fs, n_mels=256)
     L0 = np.mean(S, axis=0)
-    S_dB = librosa.power_to_db(S, ref=np.max) 
+    S_dB_1 = librosa.power_to_db(S, ref=np.max) 
 
 #     plots[0][1].set_data(S_dB)
     axes[0][1].cla()
-    axes[0][1].imshow(S_dB, aspect='auto', origin='reversed')
+#     axes[0][1].imshow(S_dB, aspect='auto', origin='reversed')
 
     S = librosa.feature.melspectrogram(y=chiptune_buffer, sr=fs, n_mels=256)
     L1 = np.mean(S, axis=0)
-    S_dB = librosa.power_to_db(S, ref=np.max) 
+    S_dB_2 = librosa.power_to_db(S, ref=np.max) 
 
 #     plots[1][1].set_data(S_dB)
     axes[1][1].cla()
-    axes[1][1].imshow(S_dB, aspect='auto', origin='reversed')
+#     axes[1][1].imshow(S_dB, aspect='auto', origin='reversed')
 
     S = librosa.feature.melspectrogram(y=piano_buffer, sr=fs, n_mels=256)
     L2 = np.mean(S, axis=0)
-    S_dB = librosa.power_to_db(S, ref=np.max) 
+    S_dB_3 = librosa.power_to_db(S, ref=np.max) 
     
     axes[2][1].cla()
-    axes[2][1].imshow(S_dB, aspect='auto', origin='reversed')
+#     axes[2][1].imshow(S_dB, aspect='auto', origin='reversed')
+    
+    len_max = np.max([S_dB_1.shape[1], S_dB_1.shape[1], S_dB_1.shape[1]])
+
+    plots[0][1] = axes[0][1].imshow(S_dB_1, aspect='auto', origin='reversed')
+    axes[0][1].set_xlim([0, len_max])
+    plots[1][1] = axes[1][1].imshow(S_dB_2, aspect='auto', origin='reversed')
+    axes[1][1].set_xlim([0, len_max])
+    plots[2][1] = axes[2][1].imshow(S_dB_3, aspect='auto', origin='reversed')
+    axes[2][1].set_xlim([0, len_max])
+    
 
 #     plots[2][1].set_data(S_dB)
 
@@ -188,8 +264,14 @@ if __name__ == "__main__":
     chiptune_buffer = np.empty((0), np.float32)
     piano_buffer = np.empty((0), np.float32)
 
+    once = True
+    
     for i, (block_origin, block_chiptune, block_piano) in enumerate(zip(original_stream, chiptune_stream, piano_stream)):
-
+        
+        if once:
+            print('[Data Type: {} / {} / {}]'.format(block_origin.dtype, block_chiptune.dtype, block_piano.dtype))
+            once = False
+        
         original_buffer = np.append(original_buffer, block_origin)
         chiptune_buffer = np.append(chiptune_buffer, block_chiptune)
         piano_buffer = np.append(piano_buffer, block_piano)
@@ -221,10 +303,9 @@ if __name__ == "__main__":
 
     S = librosa.feature.melspectrogram(y=original_buffer, sr=fs, n_mels=256)
     L0 = np.mean(S, axis=0)
-    S_dB = librosa.power_to_db(S, ref=np.max) 
+    S_dB_1 = librosa.power_to_db(S, ref=np.max) 
 
 #     axes[0][1].imshow(norm_specgram, aspect='auto', origin='reversed')
-    plots[0][1] = axes[0][1].imshow(S_dB, aspect='auto', origin='reversed')
 
     f, t, Zxx = signal.stft(chiptune_buffer, fs, nperseg=int(fs/10))
     specgram = 20 * np.log10(np.maximum(abs(Zxx), 1e-8))
@@ -232,10 +313,9 @@ if __name__ == "__main__":
 
     S = librosa.feature.melspectrogram(y=chiptune_buffer, sr=fs, n_mels=256)
     L1 = np.mean(S, axis=0)
-    S_dB = librosa.power_to_db(S, ref=np.max) 
+    S_dB_2 = librosa.power_to_db(S, ref=np.max) 
 
 #     axes[1][1].imshow(norm_specgram, aspect='auto', origin='reversed')
-    plots[1][1] = axes[1][1].imshow(S_dB, aspect='auto', origin='reversed')
 
     f, t, Zxx = signal.stft(piano_buffer, fs, nperseg=int(fs/10))
     specgram = 20 * np.log10(np.maximum(abs(Zxx), 1e-8))
@@ -243,10 +323,18 @@ if __name__ == "__main__":
 
     S = librosa.feature.melspectrogram(y=piano_buffer, sr=fs, n_mels=256)
     L2 = np.mean(S, axis=0)
-    S_dB = librosa.power_to_db(S, ref=np.max) 
+    S_dB_3 = librosa.power_to_db(S, ref=np.max) 
 
 #     axes[2][1].imshow(norm_specgram, aspect='auto', origin='reversed')
-    plots[2][1] = axes[2][1].imshow(S_dB, aspect='auto', origin='reversed')
+
+    len_max = np.max([S_dB_1.shape[1], S_dB_1.shape[1], S_dB_1.shape[1]])
+
+    plots[0][1] = axes[0][1].imshow(S_dB_1, aspect='auto', origin='reversed')
+    axes[0][1].set_xlim([0, len_max])
+    plots[1][1] = axes[1][1].imshow(S_dB_2, aspect='auto', origin='reversed')
+    axes[1][1].set_xlim([0, len_max])
+    plots[2][1] = axes[2][1].imshow(S_dB_3, aspect='auto', origin='reversed')
+    axes[2][1].set_xlim([0, len_max])
 
     len_max = np.max([len(L0), len(L1), len(L2)])
     plots[0][2] = axes[0][2].plot(L0)
@@ -262,4 +350,11 @@ if __name__ == "__main__":
     
     plt.tight_layout()
     plt.draw()
+    
+    span_original = SpanSelector(axes[0][0], onselect_original, 'horizontal', useblit=True, rectprops=dict(alpha=0.5, facecolor='red'))
+    span_chiptune = SpanSelector(axes[1][0], onselect_chiptune, 'horizontal', useblit=True, rectprops=dict(alpha=0.5, facecolor='red'))
+    span_piano = SpanSelector(axes[2][0], onselect_piano, 'horizontal', useblit=True, rectprops=dict(alpha=0.5, facecolor='red'))
+    
+    
+    
     plt.show()
