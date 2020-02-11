@@ -2,3 +2,5 @@ data/
 *.pyc
 /src/.ipynb_checkpoints/
 /src/__pycache__/
+segment/
+.DS_Store

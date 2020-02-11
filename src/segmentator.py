@@ -17,7 +17,22 @@ from scipy import signal
 import sounddevice as sd
 from matplotlib.widgets import SpanSelector
 
+ori_indmin = 0
+ori_indmax = -1
+
+chip_indmin = 0
+chip_indmax = -1
+
+pia_indmin = 0
+pia_indmax = -1
+
+segment_idx = 0
+
 def onselect_original(xmin, xmax):
+    
+    global ori_indmin
+    global ori_indmax
+    
     print('[MIN: {} / MAX: {}]'.format(xmin, xmax))
 #     indmin, indmax = np.searchsorted(original_buffer, (xmin, xmax))
     indmin = int(xmin)
@@ -25,6 +40,7 @@ def onselect_original(xmin, xmax):
     indmax = min(len(original_buffer) - 1, indmax)
 
     print('[Selected: {} ~ {}]'.format(indmin, indmax))
+    ori_indmin, ori_indmax = indmin, indmax
 #     thisx = x[indmin:indmax]
 #     thisy = y[indmin:indmax]
 #     line2.set_data(thisx, thisy)
@@ -33,22 +49,37 @@ def onselect_original(xmin, xmax):
 #     fig.canvas.draw()
 
 def onselect_chiptune(xmin, xmax):
+    
+    global chip_indmin
+    global chip_indmax
+    
     print('[MIN: {} / MAX: {}]'.format(xmin, xmax))
     indmin = int(xmin)
     indmax = int(xmax)
     indmax = min(len(chiptune_buffer) - 1, indmax)
 
     print('[Selected: {} ~ {}]'.format(indmin, indmax))
+    chip_indmin, chip_indmax = indmin, indmax
+
     
 def onselect_piano(xmin, xmax):
+    
+    global pia_indmin
+    global pia_indmax
+    
     print('[MIN: {} / MAX: {}]'.format(xmin, xmax))
     indmin = int(xmin)
     indmax = int(xmax)
     indmax = min(len(piano_buffer) - 1, indmax)
 
     print('[Selected: {} ~ {}]'.format(indmin, indmax))
+    pia_indmin, pia_indmax = indmin, indmax
 
 def keyboard_event_func(e):
+    
+    global segment_idx
+    global save_file_name_prefix
+    
     global original_buffer
     global chiptune_buffer
     global piano_buffer
@@ -57,15 +88,42 @@ def keyboard_event_func(e):
     global chiptune_stream
     global piano_stream
     
+    global ori_indmin
+    global ori_indmax
+    
+    global chip_indmin
+    global chip_indmax
+    
+    global pia_indmin
+    global pia_indmax
+    
 #     if e.name == 'delete':
     if e.name == 'p':
-        sd.play(original_buffer, fs)
+        sd.play(original_buffer[ori_indmin:ori_indmax], fs)
         
     elif e.name == 'l':
-        sd.play(chiptune_buffer, fs)
+        sd.play(chiptune_buffer[chip_indmin:chip_indmax], fs)
     
     elif e.name == ',':
-        sd.play(piano_buffer, fs)
+        sd.play(piano_buffer[pia_indmin:pia_indmax], fs)
+                
+    elif e.name == 'k':
+        len_max = max(ori_indmax - ori_indmin, chip_indmax - chip_indmin)
+        two_chan_audio = np.zeros([len_max, 2])
+        two_chan_audio[:ori_indmax - ori_indmin, 0] = original_buffer[ori_indmin:ori_indmax]
+        two_chan_audio[:chip_indmax - chip_indmin, 1] = chiptune_buffer[chip_indmin:chip_indmax]
+        print(two_chan_audio.shape)
+        
+        sd.play(two_chan_audio, fs)
+    
+    elif e.name == 'm':
+        len_max = max(ori_indmax - ori_indmin, pia_indmax - pia_indmin)
+        two_chan_audio = np.zeros([len_max, 2])
+        two_chan_audio[:ori_indmax - ori_indmin, 0] = original_buffer[ori_indmin:ori_indmax]
+        two_chan_audio[:pia_indmax - pia_indmin, 1] = piano_buffer[pia_indmin:pia_indmax]
+        print(two_chan_audio.shape)
+        
+        sd.play(two_chan_audio, fs)
         
     # One Step Block Loading
         
@@ -98,10 +156,11 @@ def keyboard_event_func(e):
         plot_figure()
     
     elif e.name == 'x':
-        
         _len = len(piano_buffer)
         piano_buffer = np.append(piano_buffer, next(piano_stream))
         piano_buffer = piano_buffer[-_len:]
+        
+        plot_figure()
         
     # Ten Step Block Forwarding
         
@@ -126,8 +185,44 @@ def keyboard_event_func(e):
             _len = len(piano_buffer)
             piano_buffer = np.append(piano_buffer, next(piano_stream))
             piano_buffer = piano_buffer[-_len:]
-
+            
+        plot_figure()
         
+    elif e.name == '\\':
+    
+        len_max = np.max([ori_indmax - ori_indmin, chip_indmax - chip_indmin, pia_indmax - pia_indmin])
+        
+        npy_array = np.zeros([len_max, 3])
+        npy_array[:ori_indmax - ori_indmin, 0] = original_buffer[ori_indmin:ori_indmax]
+        npy_array[:chip_indmax - chip_indmin, 1] = chiptune_buffer[chip_indmin:chip_indmax]
+#         npy_array[:pia_indmax - pia_indmin, 2] = piano_buffer[pia_indmin:pia_indmax]1
+        
+        npy_array = np.zeros([len_max, 3])
+        npy_array[:ori_indmax - ori_indmin, 0] = original_buffer[ori_indmin:ori_indmax]
+        npy_array[:chip_indmax - chip_indmin, 1] = chiptune_buffer[chip_indmin:chip_indmax]
+#         npy_array[:pia_indmax - pia_indmin, 2] = piano_buffer[pia_indmin:pia_indmax]
+        
+        print(npy_array.shape)
+        segment_file_name = save_file_name_prefix + '_{:03d}.npy'.format(segment_idx)
+        print(segment_file_name)
+        np.save(segment_file_name, npy_array)
+        segment_idx += 1
+    
+        for i in range(int(np.floor(10 * ori_indmax/fs) - 1)):
+            _len = len(original_buffer)
+            original_buffer = np.append(original_buffer, next(original_stream))
+            original_buffer = original_buffer[-_len:]
+            
+        for i in range(int(np.floor(10 * chip_indmax/fs) - 1)):
+            _len = len(chiptune_buffer)
+            chiptune_buffer = np.append(chiptune_buffer, next(chiptune_stream))
+            chiptune_buffer = chiptune_buffer[-_len:]
+    
+        for i in range(int(np.floor(10 * pia_indmax/fs) - 1)):
+            _len = len(piano_buffer)
+            piano_buffer = np.append(piano_buffer, next(piano_stream))
+            piano_buffer = piano_buffer[-_len:]
+            
         plot_figure()
 
         
@@ -246,6 +341,7 @@ if __name__ == "__main__":
     
     try:
         print('[Target: {}]'.format(song_names[song_idx]))
+        save_file_name_prefix = os.path.join('../segment', song_names[song_idx])
     except:
         print('[Invalid Song Number: {}]'.format(song_number))
         sys.exit()
